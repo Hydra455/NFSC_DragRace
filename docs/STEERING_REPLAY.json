@@ -1,0 +1,19 @@
+{
+  "kind": "offline calculation on recorded geometry; no game/native-controller execution",
+  "saturated_or_rejected_snapshots": [
+    {
+      "time": "18:07:37",
+      "old_pid": 1.0,
+      "geometric": 0.11547,
+      "new_limit": 0.20092,
+      "result": "capped"
+    },
+    {
+      "time": "18:08:52",
+      "old_pid": -1.0,
+      "geometric": -0.22645,
+      "new_limit": 0.34424,
+      "result": "capped"
+    }
+  ]
+}

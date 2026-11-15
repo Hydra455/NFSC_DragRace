@@ -1,0 +1,90 @@
+#include "../src/NativeLane.h"
+#include <cassert>
+#include <limits>
+static void Record(std::array<std::uint8_t,64>& profile,int index,int metres,unsigned type=1) {
+    std::uint32_t packed=((static_cast<std::uint32_t>(metres*64)&0x3FFF)<<18)|type;
+    std::memcpy(profile.data()+4+index*4,&packed,4);
+}
+int main() {
+    assert(drag::NativeOffsetMatches(-6,-5.8f));
+    assert(!drag::NativeOffsetMatches(-2,2));
+    assert(!drag::NativeOffsetMatches(6,0));
+    assert(!drag::NativeOffsetMatches(1,std::numeric_limits<float>::quiet_NaN()));
+    drag::LaneRequests request;
+    assert(request.Poll(1,false)==1);
+    for (int i=0;i<100;++i) assert(request.Poll(1,false)==0);
+    assert(request.Poll(0.3f,false)==0 && request.Poll(1,false)==0);
+    assert(request.Poll(0,false)==0 && request.Poll(1,false)==1);
+    assert(request.Poll(-1,false)==-1 && request.Poll(-1,false)==0);
+    assert(request.Poll(0,false)==0 && request.Poll(-1,true)==1);
+    assert(request.Poll(std::numeric_limits<float>::quiet_NaN(),false)==0);
+    std::array<std::uint8_t,64> profile{};
+    profile[0]=6; profile[1]=3;
+    int magnitudes[]={10,6,2,2,6,10};
+    for (int i=0;i<6;++i) Record(profile,i,magnitudes[i]);
+    auto table=drag::DecodeLaneTable(profile.data(),1.0f/64,false,true);
+    assert(table.valid && table.count==6);
+    assert(table.lanes[2].record==2 && table.lanes[2].offset==-2);
+    assert(table.lanes[3].record==3 && table.lanes[3].offset==2);
+    drag::NativeLaneState lane;
+    assert(lane.Update(table,1.99f,1,0,0.01f));
+    assert(lane.index==3 && lane.rank==3 && lane.target==2);
+    assert(lane.Update(table,1.99f,1,1,0.01f));
+    assert(lane.index==4 && lane.rank==4 && lane.target==6 && lane.changes==1);
+    assert(lane.current==6);
+    for (int i=0;i<6;++i) Record(profile,i,magnitudes[i]+1);
+    auto changed=drag::DecodeLaneTable(profile.data(),1.0f/64,false,true);
+    assert(lane.Update(changed,-2,1,0,0.01f));
+    assert(lane.rank==4 && lane.index==4 && lane.target==7 && lane.changes==1);
+    assert(lane.current==7);
+    auto reversed=drag::DecodeLaneTable(profile.data(),1.0f/64,true,true);
+    assert(lane.Update(reversed,0,1,0,0.01f));
+    assert(lane.rank==4 && lane.index==1 && lane.target==7 && lane.changes==1);
+    auto axisFlipped=drag::DecodeLaneTable(profile.data(),1.0f/64,true,false);
+    assert(lane.Update(axisFlipped,0,-1,0,0.01f));
+    assert(lane.rank==4 && lane.target==-7 && lane.current<0 && lane.changes==1);
+    for (int i=0;i<720;++i) lane.Update(axisFlipped,0,-1,0,1.0f/120);
+    assert(std::abs(lane.current+7)<0.001f);
+    assert(lane.Update(axisFlipped,0,-1,1,0.01f));
+    assert(lane.rank==5 && lane.changes==2);
+    assert(lane.Update(axisFlipped,0,-1,1,0.01f));
+    assert(lane.rank==5 && lane.changes==2 && lane.rejected==1);
+    auto before=lane;
+    assert(!lane.Update(axisFlipped,0,-1,0,10));
+    assert(lane.current==before.current && lane.changes==before.changes);
+    std::array<std::uint8_t,64> narrow{};
+    narrow[0]=1; Record(narrow,0,0);
+    auto narrowTable=drag::DecodeLaneTable(narrow.data(),1.0f/64,false,true);
+    assert(lane.Update(narrowTable,0,1,0,0.01f));
+    assert(lane.rank==0 && lane.changes==2);
+    assert(lane.Update(changed,0,1,0,0.01f));
+    assert(lane.rank==3 && lane.changes==2);
+    Record(profile,4,7,2);
+    auto noShoulder=drag::DecodeLaneTable(profile.data(),1.0f/64,false,true);
+    assert(noShoulder.valid && noShoulder.count==5);
+    for (int i=0;i<noShoulder.count;++i) assert(noShoulder.lanes[i].record!=4);
+    Record(profile,5,3);
+    auto duplicate=drag::DecodeLaneTable(profile.data(),1.0f/64,false,true);
+    assert(duplicate.valid && duplicate.count==4);
+    assert(!drag::DecodeLaneTable(profile.data(),0,false,true).valid);
+    profile[1]=7;
+    assert(!drag::DecodeLaneTable(profile.data(),1.0f/64,false,true).valid);
+    alignas(16) std::array<std::uint8_t,0x30C> nav{};
+    *reinterpret_cast<int*>(nav.data()+0x74)=2; nav[0x2E1]=4;
+    *reinterpret_cast<float*>(nav.data()+0x2E4)=-1.75f;
+    *reinterpret_cast<float*>(nav.data()+0x2EC)=2.25f;
+    *reinterpret_cast<float*>(nav.data()+0x2F0)=0.8f;
+    drag::NativeNavSnapshot saved(nav.data());
+    *reinterpret_cast<int*>(nav.data()+0x74)=1; nav[0x2E1]=6;
+    *reinterpret_cast<float*>(nav.data()+0x2E4)=9;
+    saved.Restore([](std::uint8_t* object,float offset) {
+        assert(*reinterpret_cast<int*>(object+0x74)==2 && object[0x2E1]==4);
+        assert(*reinterpret_cast<float*>(object+0x2E4)!=offset);
+        *reinterpret_cast<float*>(object+0x94)=offset;
+        *reinterpret_cast<float*>(object+0x2E4)=offset;
+        *reinterpret_cast<float*>(object+0x2EC)=offset;
+        *reinterpret_cast<float*>(object+0x2F0)=0;
+    });
+    assert(std::memcmp(nav.data()+0x2E0,saved.control.data(),saved.control.size())==0);
+    assert(*reinterpret_cast<float*>(nav.data()+0x94)==-1.75f);
+}

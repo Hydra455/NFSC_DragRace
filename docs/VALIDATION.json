@@ -1,0 +1,10 @@
+{
+  "project": "NFSC_DragRace",
+  "windows_x86_cross_compile_link": "pass",
+  "core_test_programs_passed": 11,
+  "native_byte_guards_verified": 145,
+  "native_call_targets_verified": 9,
+  "live_game_without_extra_options": "pending",
+  "visual_studio_2026_build": "pending",
+  "asi_sha256": "495b0c4bffde1ca2e95f42131825bf158f053c7d9eda974fa8fb8f89ea71f288"
+}
