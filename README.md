@@ -10,7 +10,7 @@
 7. Select ,,User Mode" and select the ,,_setup_binary.end"
 8. Select your NFS Carbon directory and save the changes
 9. Put the DragRace.asi and DragHUD folder in your scripts folder (make sure you have dinput8.dll)
-10. Make a new save game or keep the current one and enjoy the mode
+10. Make a new save game or keep the current one and enjoy the mod
 
 ## Discord
 For any issues or suggestions for the mod you can join my discord server and we can talk there
