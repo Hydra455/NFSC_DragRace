@@ -10,6 +10,7 @@
 #include "NativeSteering.h"
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -31,7 +32,9 @@ constexpr std::uintptr_t RaceTypeRva = 0x2136A0;
 constexpr std::uintptr_t CollectionKeyRva = 0x2134E0;
 constexpr std::uintptr_t RaceStatusRva = 0x698284;
 constexpr std::uintptr_t RaceParametersOffset = 0x6A1C;
-constexpr char ExeHash[] = "baaaaec33873d4ba7e4dbae6a5212049ffdcf9679a35d865d7625b4189952fd3";
+constexpr DWORD CarbonImageFileBytes = 0x6E2000;
+constexpr LONG CarbonPeHeaderOffset = 0x108;
+constexpr char CarbonImageHash[] = "d8148ffe4fdc373341e1141830dded834711f07433f3b614941a58ea686aeee4";
 using RaceTypeFunction = int(__thiscall*)(void*);
 using KeyFunction = std::uint32_t(__thiscall*)(void*);
 HMODULE gModule{};
@@ -121,7 +124,23 @@ std::filesystem::path ModulePath(HMODULE module) {
 }
 
 
-std::string HashFile(const std::filesystem::path& path) {
+enum class FileHash { Full, CarbonImage };
+
+void NormalizeCarbonHeader(UCHAR* data, DWORD bytes) {
+    constexpr auto fileHeader = CarbonPeHeaderOffset + offsetof(IMAGE_NT_HEADERS32, FileHeader);
+    constexpr auto optionalHeader = CarbonPeHeaderOffset + offsetof(IMAGE_NT_HEADERS32, OptionalHeader);
+    constexpr auto securityDirectory = optionalHeader + offsetof(IMAGE_OPTIONAL_HEADER32, DataDirectory) +
+        IMAGE_DIRECTORY_ENTRY_SECURITY * sizeof(IMAGE_DATA_DIRECTORY);
+    Require(bytes >= securityDirectory + sizeof(IMAGE_DATA_DIRECTORY), "The Carbon executable header is incomplete.");
+
+    auto characteristics = data + fileHeader + offsetof(IMAGE_FILE_HEADER, Characteristics);
+    characteristics[0] &= static_cast<UCHAR>(~IMAGE_FILE_LARGE_ADDRESS_AWARE);
+    std::memset(data + fileHeader + offsetof(IMAGE_FILE_HEADER, TimeDateStamp), 0, sizeof(DWORD));
+    std::memset(data + optionalHeader + offsetof(IMAGE_OPTIONAL_HEADER32, CheckSum), 0, sizeof(DWORD));
+    std::memset(data + securityDirectory, 0, sizeof(IMAGE_DATA_DIRECTORY));
+}
+
+std::string HashFile(const std::filesystem::path& path, FileHash mode = FileHash::Full) {
     BCRYPT_ALG_HANDLE algorithm{}; BCRYPT_HASH_HANDLE hash{}; HANDLE file = INVALID_HANDLE_VALUE;
     std::vector<UCHAR> storage;
     try {
@@ -132,9 +151,20 @@ std::string HashFile(const std::filesystem::path& path) {
         Require(BCryptCreateHash(algorithm, &hash, storage.data(), static_cast<ULONG>(storage.size()), nullptr, 0, 0) >= 0, "Cannot initialize SHA-256.");
         file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
         Require(file != INVALID_HANDLE_VALUE, "Cannot read one of the required game files.");
-        std::array<UCHAR, 65536> buffer{}; DWORD bytes{};
-        for (;;) {
-            Require(ReadFile(file, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes, nullptr) != FALSE, "A required game file could not be read completely.");
+        std::array<UCHAR, 65536> buffer{};
+        constexpr auto bufferBytes = static_cast<DWORD>(buffer.size());
+        const bool carbonImage = mode == FileHash::CarbonImage;
+        DWORD remaining = CarbonImageFileBytes;
+        while (!carbonImage || remaining != 0) {
+            const DWORD requested = carbonImage ? std::min(remaining, bufferBytes) : bufferBytes;
+            DWORD bytes{};
+            Require(ReadFile(file, buffer.data(), requested, &bytes, nullptr) != FALSE, "A required game file could not be read completely.");
+            if (carbonImage) {
+                Require(bytes == requested, "The Carbon executable is shorter than the reference image.");
+                if (remaining == CarbonImageFileBytes)
+                    NormalizeCarbonHeader(buffer.data(), bytes);
+                remaining -= bytes;
+            }
             if (!bytes) break;
             Require(BCryptHashData(hash, buffer.data(), bytes, 0) >= 0, "SHA-256 update failed.");
         }
@@ -644,6 +674,16 @@ void RepairDragEngineForRoaming() {
 #include "NativeDragHud.h"
 
 void CheckCode() {
+    Require(gBase != 0, "Cannot locate the loaded Carbon executable.");
+    const auto dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(gBase);
+    Require(dos->e_magic == IMAGE_DOS_SIGNATURE && dos->e_lfanew == CarbonPeHeaderOffset,
+        "The loaded Carbon executable has an unexpected DOS header.");
+    const auto nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(gBase + CarbonPeHeaderOffset);
+    Require(nt->Signature == IMAGE_NT_SIGNATURE && nt->FileHeader.Machine == IMAGE_FILE_MACHINE_I386 &&
+        nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC,
+        "Expected a 32-bit Carbon executable.");
+    Require(nt->OptionalHeader.ImageBase == gBase && nt->OptionalHeader.SizeOfImage > 0x778C8C + sizeof(float),
+        "The loaded Carbon executable has an unexpected image layout.");
     Require(*reinterpret_cast<const unsigned*>(gBase+0x45E6B8)==gBase+0x45E691,"The Drag Quick Race options slot differs from the verified build.");
     Require(*reinterpret_cast<const unsigned*>(gBase+0x6590E4)==0,"The Drag frontend label differs from the verified build.");
     if (!gHookCreated) {
@@ -831,14 +871,8 @@ void CheckCode() {
     constexpr std::array<std::uint8_t, 10> key{0x8B,0x41,0x04,0x85,0xC0,0x74,0x03,0x8B,0x00,0xC3};
     if (!gHookCreated) Require(std::memcmp(reinterpret_cast<void*>(gBase + RaceTypeRva), race.data(), race.size()) == 0, "Race-type code differs from the verified build or is already hooked.");
     Require(std::memcmp(reinterpret_cast<void*>(gBase + CollectionKeyRva), key.data(), key.size()) == 0, "The collection-key routine differs from the verified build.");
-    auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(gBase);
-    auto nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(gBase + dos->e_lfanew);
-    Require(dos->e_magic == IMAGE_DOS_SIGNATURE && nt->Signature == IMAGE_NT_SIGNATURE && nt->FileHeader.Machine == IMAGE_FILE_MACHINE_I386, "Expected a 32-bit Carbon executable.");
-    Require(nt->OptionalHeader.SizeOfImage > 0x778C8C + sizeof(float), "The image does not contain the verified race-status location.");
 }
 void InstallRuntime() {
-    Require(HashFile(ModulePath(nullptr))==ExeHash,"This build requires the supported 32-bit Carbon 1.4 executable.");
-    CheckCode();
     frontend::PrepareIcons();
     native_drag_hud::Prepare();
     if (!gHookCreated) {
@@ -934,8 +968,20 @@ void InstallRuntime() {
     frontend::EnableDragMenu();
 }
 
+bool CheckCompatibility() {
+    try {
+        if (HashFile(ModulePath(nullptr), FileHash::CarbonImage) != CarbonImageHash)
+            return false;
+        CheckCode();
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
 DWORD WINAPI RuntimeThread(void*) {
     gBase=reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
+    if (!CheckCompatibility()) return 1;
     try {
         InstallRuntime();
         return 0;
