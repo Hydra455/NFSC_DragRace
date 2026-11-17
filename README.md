@@ -17,6 +17,11 @@
 Open `NFSC_DragRace.sln` in Visual Studio 2026 with the Desktop development with C++ workload.
 Build `Release | Win32` and copy `bin\Release\NFSC_DragRace.asi` into your game's scripts folder.
 
+## Carbon HUD fonts
+
+`HUD_Drag.fng` references Carbon's stock title font for the speed, gear, countdown and shift prompts, and the stock body font for the timer, position and units.
+For an existing installation, replace both `scripts\NFSC_DragRace.asi` and `scripts\DragHUD\HUD_Drag.fng` from this build as a pair. Carbon supplies the font textures and glyph tables.
+
 ## Executable compatibility
 
 The mod supports the verified 32-bit Carbon 1.4 executable with or without the Large Address Aware flag (the 4 GB patch).
