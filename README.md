@@ -12,24 +12,6 @@
 9. Put NFSC_DragRace.asi and the DragHUD folder in your scripts folder (make sure you have dinput8.dll)
 10. Make a new save game or keep the current one and enjoy the mod
 
-## Build
-
-Open `NFSC_DragRace.sln` in Visual Studio 2026 with the Desktop development with C++ workload.
-Build `Release | Win32` and copy `bin\Release\NFSC_DragRace.asi` into your game's scripts folder.
-
-## Carbon HUD fonts
-
-`HUD_Drag.fng` references Carbon's stock title font for the speed, gear, countdown and shift prompts, and the stock body font for the timer, position and units.
-For an existing installation, replace both `scripts\NFSC_DragRace.asi` and `scripts\DragHUD\HUD_Drag.fng` from this build as a pair. Carbon supplies the font textures and glyph tables.
-
-## Executable compatibility
-
-The mod supports the verified 32-bit Carbon 1.4 executable with or without the Large Address Aware flag (the 4 GB patch).
-PE timestamp, checksum, Authenticode directory metadata, and data appended after the reference image are allowed to differ.
-The game code, section layout, and existing hook signatures must still match the reference checks.
-
-If an executable or hook signature check fails, Carbon continues without Drag Race.
-
 ## Discord
 For any issues or suggestions for the mod you can join my discord server and we can talk there
 Discord Link: https://discord.com/invite/CXcVacRsX2
