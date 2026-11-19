@@ -76,13 +76,18 @@ void Prepare() {
     auto directory=ModulePath(gModule).parent_path()/L"DragHUD";
     try {
         ReadAsset(directory/L"HUD_Drag.fng",
-            "c8a63ea97a087c4173d2bba6fc568b5aba90abdff819761c41e8b40120786a08",
+            "c7be71ddeb287697b6a05a941531219290e8c70e961cedfd4c8cff1498f3d753",
             65536,layoutBytes);
         ReadAsset(directory/L"HUDTEXDRAG.BIN",
             "2926e56da455d53e04c46cca5fb28ad9f9f83758bcafe85140aa8c284c853a1b",
             2097152,resourceBytes);
         prepared=true;
-    } catch (const std::exception&) {
+    } catch (const std::exception& error) {
+        layoutBytes.clear();
+        resourceBytes.clear();
+        const auto message=std::string("Could not prepare the Drag HUD.\n\n")+error.what()+
+            "\n\nPlace the packaged DragHUD folder next to NFSC_DragRace.asi.";
+        MessageBoxA(nullptr,message.c_str(),"NFSC_DragRace",MB_OK|MB_ICONWARNING|MB_TASKMODAL|MB_SETFOREGROUND);
     }
 }
 
