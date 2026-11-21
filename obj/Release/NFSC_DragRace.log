@@ -1,6 +1,8 @@
 ﻿  Runtime.cpp
   buffer.c
   hook.c
+  trampoline.c
+  hde32.c
 C:\Users\k3nto\Documents\NFSC_DragRace-main\third_party\minhook\src\buffer.c(49,6): warning C4201: nonstandard extension used: nameless struct/union
 C:\Users\k3nto\Documents\NFSC_DragRace-main\third_party\minhook\src\buffer.c(151,44): warning C4100: 'pOrigin': unreferenced parameter
 C:\Users\k3nto\Documents\NFSC_DragRace-main\third_party\minhook\src\hook.c(419,43): warning C4310: cast truncates constant value
@@ -9,8 +11,6 @@ C:\Users\k3nto\Documents\NFSC_DragRace-main\third_party\minhook\src\hook.c(436,2
 C:\Users\k3nto\Documents\NFSC_DragRace-main\third_party\minhook\src\hook.c(612,52): warning C4244: '=': conversion from 'BOOL' to 'UINT8', possible loss of data
 C:\Users\k3nto\Documents\NFSC_DragRace-main\third_party\minhook\src\hook.c(796,49): warning C4244: '=': conversion from 'BOOL' to 'UINT8', possible loss of data
 C:\Users\k3nto\Documents\NFSC_DragRace-main\third_party\minhook\src\hook.c(803,51): warning C4244: '=': conversion from 'BOOL' to 'UINT8', possible loss of data
-  trampoline.c
 C:\Users\k3nto\Documents\NFSC_DragRace-main\third_party\minhook\src\trampoline.c(286,19): warning C4244: '+=': conversion from 'UINT' to 'UINT8', possible loss of data
-  hde32.c
   Generating Code...
   NFSC_DragRace.vcxproj -> C:\Users\k3nto\Documents\NFSC_DragRace-main\bin\Release\NFSC_DragRace.asi

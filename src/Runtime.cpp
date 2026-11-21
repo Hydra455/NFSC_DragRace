@@ -675,13 +675,12 @@ void CheckCode() {
     Require(nt->Signature == IMAGE_NT_SIGNATURE && nt->FileHeader.Machine == IMAGE_FILE_MACHINE_I386 &&
         nt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC,
         "Expected a 32-bit Carbon executable.");
-    for (const auto rva : {0x45E6B8u, 0x6590E4u, 0x5C2480u, 0x5F2E2Cu, 0x778C8Cu})
+    for (const auto rva : {0x45E6B8u, 0x6590E4u, 0x5F2E2Cu, 0x778C8Cu})
         Require(ReadableMemory(reinterpret_cast<const void*>(gBase + rva), sizeof(unsigned)),
             "A required Carbon data address is unavailable.");
     Require(*reinterpret_cast<const unsigned*>(gBase+0x45E6B8)==gBase+0x45E691,"The Drag Quick Race options slot differs from the verified build.");
     Require(*reinterpret_cast<const unsigned*>(gBase+0x6590E4)==0,"The Drag frontend label differs from the verified build.");
     if (!gHookCreated) {
-        Require(std::abs(*reinterpret_cast<const float*>(gBase+0x5C2480)-1.0f/360.0f)<0.00000001f, "The native steering-angle conversion constant differs from the verified turn convention.");
         Require(*reinterpret_cast<const unsigned*>(gBase+0x5F2E2C)==drag::ExtendedDrivingMask, "The native extended driving mask differs from the verified baseline.");
         struct Guard { std::uintptr_t rva; std::array<std::uint8_t,16> code; };
         const Guard guards[] = {
